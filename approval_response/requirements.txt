@@ -1,0 +1,2 @@
+google-cloud-secret-manager==2.0.0
+google-cloud-logging==1.15.1

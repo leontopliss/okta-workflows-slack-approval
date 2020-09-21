@@ -123,3 +123,16 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Terraform
+.terraform/
+.terraform*
+terraform.*
+
+# Google creds for the development environment
+creds.json
+
+#OS Files
+.DS_Store
+
+
