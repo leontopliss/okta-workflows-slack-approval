@@ -3,6 +3,7 @@ import os
 import hmac
 import hashlib
 from time import time
+import requests
 
 from secrets import get_secret
 from logger import setup_logger
@@ -36,14 +37,12 @@ def approval_response(request):
         log.debug(json_data)
 
         msg_type = json_data['type']
-        action_name = json_data['actions'][0]['name'] 
+        action_id = json_data['actions'][0]['action_id'] 
 
-        log.debug('type: {} action name: {}'.format(msg_type,action_name))
-
-        if msg_type == "interactive_message" and action_name == "approve":
+        if msg_type == "block_actions" and action_id == "approve":
             log.debug('action approve')
             return approve(json_data), 200
-        elif msg_type == "interactive_message" and action_name == "reject":
+        elif msg_type == "block_actions" and action_id == "reject":
             log.debug('action reject')
             return reject(json_data), 200
             
@@ -83,11 +82,22 @@ def verify_slack_signature(request):
 
 
 def approve(data):
-    user = data['user']['name']
-    message = "Approved by {}".format(user)
-    return message
+    user = data['user']['username']
+
+    response = {
+        'text': "Approved by {}".format(user)
+    }
+
+    requests.post(data['response_url'], json=response)
+    return ''
 
 def reject(data):
-    user = data['user']['name']
-    message = "Rejected by {}".format(user)
-    return message
+    user = data['user']['username']
+
+    response = {
+        'text': "Rejected by {}".format(user)
+    }
+
+    requests.post(data['response_url'], json=response)
+
+    return response

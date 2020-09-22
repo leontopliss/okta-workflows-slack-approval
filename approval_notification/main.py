@@ -1,6 +1,7 @@
 import json
 import slack
 import os
+import uuid
 
 from secrets import get_secret
 from logger import setup_logger
@@ -25,38 +26,63 @@ def approval_notify(request):
 
     title = 'Test Approval'
     text = 'Access to iBusiness'
+    callback_id = uuid.uuid4().hex
     log.info('received approval request, title: {}, text {}'.format(title, text))
 
     client = slack.WebClient(token=slack_token)
 
-    # Message posted to Slack as an attachment
-    attachments = [
+    # Message posted to Slack as blocks
+    new_user_blocks = [
         {
-            "mrkdwn_in": ["text"],
-            "color": "#36a64f",
-            "title": title,
-            "text": text,
-            "callback_id": "vsvsadsda",
-            "actions": [
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "New User Request\n"
+            }
+        },
+        {
+            "type": "section",
+            "fields": [
                 {
-                    "name": "approve",
-                    "text": "Approve",
-                    "type": "button",
-                    "value": "value",
-                    "style": "primary"
+                    "type": "mrkdwn",
+                    "text": "*Name*\nJohn Smith"
                 },
                 {
-                    "name": "reject",
-                    "text": "Reject",
+                    "type": "mrkdwn",
+                    "text": "*Manager:*\nmartin.knowes@itv.com"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*User email*\njohn.smith@itv.com"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Department:*\nTechnology"
+                }
+            ]
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
                     "type": "button",
-                    "value": "value",
+                    "action_id": "approve",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Approve"
+                    },
+                    "style": "primary",
+                    "value": "click_me_123"
+                },
+                {
+                    "type": "button",
+                    "action_id": "reject",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Reject"
+                    },
                     "style": "danger",
-                    "confirm": {
-                        "title": "Are you sure?",
-                        "text": "Are you sure?",
-                        "ok_text": "Yes",
-                        "dismiss_text": "No"
-                    }
+                    "value": "click_me_123"
                 }
             ]
         }
@@ -65,7 +91,7 @@ def approval_notify(request):
     # Send message to Slack
     client.chat_postMessage(
         channel=slack_channel,
-        attachments=attachments
+        blocks=new_user_blocks
     )
 
     return 'ok'
