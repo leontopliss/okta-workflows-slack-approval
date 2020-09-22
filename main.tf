@@ -26,6 +26,7 @@ resource "google_project_service" "services" {
   project = var.project_id
   for_each = toset([
     "cloudresourcemanager.googleapis.com",
+    "iam.googleapis.com",
     "cloudbuild.googleapis.com",
     "secretmanager.googleapis.com",
     "cloudresourcemanager.googleapis.com",
@@ -41,6 +42,7 @@ resource "google_secret_manager_secret" "setup" {
   for_each = toset([
     "slack-token",
     "slack-channel",
+    "slack-signing-secret"
   ])
 
   secret_id = each.value
@@ -64,10 +66,55 @@ resource "google_storage_bucket" "bucket_source_archives" {
 }
 
 /**
- * Cloud Functions.
- * For each function, zip up the source and upload to GCS.
- * Uploaded source is referenced in the Function deploy.
+ * Slack Approval Notification Cloud Function
  */
+
+// create a custom service account (least privilege)
+resource "google_service_account" "cf_approval_notification_sa" {
+  account_id   = "cf-approval-notification-sa"
+  display_name = "Approval Notification Cloud Function"
+
+  depends_on = [google_project_service.services]
+}
+
+// Assign roles to the service account
+resource "google_project_iam_binding" "cf_approval_notification_sa" {
+  for_each = toset([
+    "roles/cloudfunctions.invoker",
+    "roles/logging.logWriter",
+    "roles/editor"
+    // TODO REMOVE after analysis ^^^^^^
+  ])
+  
+  project = var.project_id
+  role    = each.value
+  members = [
+    "serviceAccount:${google_service_account.cf_approval_notification_sa.email}"
+  ]
+
+  depends_on = [
+    google_service_account.cf_approval_notification_sa
+  ]
+}
+
+// Allow the service account to access the secrets the function requires
+resource "google_secret_manager_secret_iam_member" "approval_notification_secrets_iam" {
+
+  for_each = toset([
+    "slack-token",
+    "slack-channel"
+  ])
+
+  project = var.project_id
+  secret_id = each.value
+  role = "roles/secretmanager.secretAccessor"
+  member = "serviceAccount:${google_service_account.cf_approval_notification_sa.email}"
+
+  depends_on = [
+    google_service_account.cf_approval_notification_sa,
+    google_secret_manager_secret.setup
+  ]
+}
 
 data "archive_file" "local_approval_notification_source" {
   type        = "zip"
@@ -92,11 +139,14 @@ resource "google_cloudfunctions_function" "function_approval_notification" {
   entry_point           = "approval_notify"
   trigger_http          = true
   runtime               = "python37"
+  service_account_email = google_service_account.cf_approval_notification_sa.email
   source_archive_bucket = google_storage_bucket.bucket_source_archives.name
   source_archive_object = google_storage_bucket_object.gcs_approval_notification_source.name
 
   depends_on = [
-    google_project_service.services
+    google_project_iam_binding.cf_approval_notification_sa,
+    google_project_service.services,
+    google_secret_manager_secret_iam_member.approval_notification_secrets_iam
   ]
 }
 
@@ -109,22 +159,58 @@ resource "google_cloudfunctions_function_iam_binding" "binding_approval_notifica
   members = [
     "allUsers",
   ]
+
+  depends_on = [
+    google_cloudfunctions_function.function_approval_notification
+  ]
 }
 
-// All the cloud function access to secrets
-resource "google_secret_manager_secret_iam_member" "approval_notification_secrets_iam" {
+/**
+ * Slack Response Cloud Function
+ */
+
+// create a custom service account (least privilege)
+resource "google_service_account" "cf_approval_response_sa" {
+  account_id   = "cf-approval-response-sa"
+  display_name = "Approval Response Cloud Function"
+
+  depends_on = [google_project_service.services]
+}
+
+// Assign roles to the service account
+resource "google_project_iam_binding" "cf_approval_response_sa" {
+  for_each = toset([
+    "roles/cloudfunctions.invoker",
+    "roles/logging.logWriter",
+    "roles/editor"
+    // TODO REMOVE after analysis ^^^^^^
+  ])
+  
+  project = var.project_id
+  role    = each.value
+  members = [
+    "serviceAccount:${google_service_account.cf_approval_response_sa.email}"
+  ]
+
+  depends_on = [
+    google_service_account.cf_approval_response_sa
+  ]
+}
+
+// Allow the service account to access the secrets the function requires
+resource "google_secret_manager_secret_iam_member" "approval_response_secrets_iam" {
 
   for_each = toset([
-    "slack-token",
-    "slack-channel",
+    "slack-signing-secret"
   ])
 
   project = var.project_id
   secret_id = each.value
   role = "roles/secretmanager.secretAccessor"
-  member = "serviceAccount:${google_cloudfunctions_function.function_approval_notification.service_account_email}"
+  member = "serviceAccount:${google_service_account.cf_approval_response_sa.email}"
 
   depends_on = [
+    google_service_account.cf_approval_response_sa,
     google_secret_manager_secret.setup
   ]
 }
@@ -154,11 +240,14 @@ resource "google_cloudfunctions_function" "function_approval_response" {
   entry_point           = "approval_response"
   trigger_http          = true
   runtime               = "python37"
+  service_account_email = google_service_account.cf_approval_response_sa.email
   source_archive_bucket = google_storage_bucket.bucket_source_archives.name
   source_archive_object = google_storage_bucket_object.gcs_approval_response_source.name
 
   depends_on = [
-    google_project_service.services
+    google_project_iam_binding.cf_approval_response_sa,
+    google_project_service.services,
+    google_secret_manager_secret_iam_member.approval_response_secrets_iam
   ]
 }
 
@@ -170,8 +259,11 @@ resource "google_cloudfunctions_function_iam_binding" "binding_approval_response
   members = [
     "allUsers",
   ]
-}
 
+  depends_on = [
+    google_cloudfunctions_function.function_approval_response
+  ]
+}
 
 // define output variables for use downstream
 output "project" {

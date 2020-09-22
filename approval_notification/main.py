@@ -6,11 +6,22 @@ from secrets import get_secret
 from logger import setup_logger
 
 gcp_project_id = os.getenv('GCP_PROJECT')
-slack_channel = get_secret(gcp_project_id, 'slack-channel')
-slack_token = get_secret(gcp_project_id, 'slack-token')
+slack_channel = None
+slack_token = None
 log = setup_logger()
 
 def approval_notify(request):
+
+    # loading secrets as lazy globals
+    # can't be global as this creates issues with automated deployment
+    # as cold start on initial deployment can't access the variables
+    global slack_channel, slack_token
+
+    if not slack_channel:
+        slack_channel = get_secret(gcp_project_id, 'slack-channel')
+
+    if not slack_token:
+        slack_token = get_secret(gcp_project_id, 'slack-token')
 
     title = 'Test Approval'
     text = 'Access to iBusiness'
