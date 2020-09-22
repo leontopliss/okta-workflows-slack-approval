@@ -41,11 +41,12 @@ def approval_response(request):
 
         if msg_type == "block_actions" and action_id == "approve":
             log.debug('action approve')
-            return approve(json_data), 200
+            approve(json_data)
+            return "action taken", 200
         elif msg_type == "block_actions" and action_id == "reject":
             log.debug('action reject')
-            return reject(json_data), 200
-            
+            reject(json_data)
+            return "action taken", 200
 
         return "no action taken", 200
 
@@ -80,24 +81,44 @@ def verify_slack_signature(request):
         log.error("signature digest does not match")
         return False
 
+def create_response_msg(response_text, original_msg):
+    feedback = {
+        "type": "context",
+        "elements": [
+            {
+                "type": "mrkdwn",
+                "text": response_text
+            }
+        ]
+    }
+
+    response_msg = {
+        "blocks": [original_msg['blocks'][0], original_msg['blocks'][1], feedback],
+        "replace_original": True
+    }
+
+    log.debug(response_msg)
+
+    return response_msg
+
+def json_response(url, msg):
+    response = requests.post(
+        url, 
+        json=msg, 
+        headers={'Content-Type': 'application/json'}
+    )
+    if response.status_code != 200:
+        raise ValueError(
+            'Request to slack returned an error %s, the response is:\n%s'
+            % (response.status_code, response.text)
+        )
 
 def approve(data):
-    user = data['user']['username']
-
-    response = {
-        'text': "Approved by {}".format(user)
-    }
-
-    requests.post(data['response_url'], json=response)
-    return ''
+    response_text = ":tick: Approved by {}".format(data['user']['username'])
+    response_msg = create_response_msg(response_text, data['message'])
+    json_response(data['response_url'], response_msg)
 
 def reject(data):
-    user = data['user']['username']
-
-    response = {
-        'text': "Rejected by {}".format(user)
-    }
-
-    requests.post(data['response_url'], json=response)
-
-    return response
+    response_text = ":x: Rejected by {}".format(data['user']['username'])
+    response_msg = create_response_msg(response_text, data['message'])
+    json_response(data['response_url'], response_msg)
