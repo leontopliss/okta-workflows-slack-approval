@@ -29,8 +29,10 @@ resource "google_project_service" "services" {
     "iam.googleapis.com",
     "cloudbuild.googleapis.com",
     "secretmanager.googleapis.com",
-    "cloudresourcemanager.googleapis.com",
-    "cloudfunctions.googleapis.com"
+    "cloudfunctions.googleapis.com",
+    "firestore.googleapis.com",
+    //firestore depends on app engine
+    "appengine.googleapis.com" 
   ])
   service            = each.value
   disable_on_destroy = false
@@ -42,7 +44,8 @@ resource "google_secret_manager_secret" "setup" {
   for_each = toset([
     "slack-token",
     "slack-channel",
-    "slack-signing-secret"
+    "slack-signing-secret",
+    "notification-key"
   ])
 
   secret_id = each.value
@@ -50,6 +53,14 @@ resource "google_secret_manager_secret" "setup" {
   replication {
     automatic = true
   }
+
+  depends_on = [google_project_service.services]
+}
+
+// Enable Firestore
+resource google_app_engine_application "app" {
+  location_id  = var.region
+  database_type = "CLOUD_FIRESTORE"
 
   depends_on = [google_project_service.services]
 }
@@ -82,6 +93,7 @@ resource "google_project_iam_binding" "cf_approval_notification_sa" {
   for_each = toset([
     "roles/cloudfunctions.invoker",
     "roles/logging.logWriter",
+    "roles/datastore.owner",
     "roles/editor"
     // TODO REMOVE after analysis ^^^^^^
   ])
@@ -102,7 +114,8 @@ resource "google_secret_manager_secret_iam_member" "approval_notification_secret
 
   for_each = toset([
     "slack-token",
-    "slack-channel"
+    "slack-channel",
+    "notification-key"
   ])
 
   project = var.project_id
@@ -182,6 +195,7 @@ resource "google_project_iam_binding" "cf_approval_response_sa" {
   for_each = toset([
     "roles/cloudfunctions.invoker",
     "roles/logging.logWriter",
+    "roles/datastore.owner",
     "roles/editor"
     // TODO REMOVE after analysis ^^^^^^
   ])
