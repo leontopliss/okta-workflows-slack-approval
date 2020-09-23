@@ -55,7 +55,7 @@ def approval_notify(request):
         construct_actions_msg_block(request_id)
     ]
 
-    add_record_to_datastore(request_id, approval_type, data)
+    write_to_datastore(request_id, approval_type, data)
 
     # Send message to Slack
     client.chat_postMessage(
@@ -133,7 +133,7 @@ def construct_actions_msg_block(request_id):
     return actions_block
 
 
-def add_record_to_datastore(request_id, approval_type, data):
+def write_to_datastore(request_id, approval_type, data):
 
     db = firestore.Client()
     doc_ref = db.collection('approvals').document(request_id)

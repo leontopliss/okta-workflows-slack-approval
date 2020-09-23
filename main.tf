@@ -43,9 +43,10 @@ resource "google_secret_manager_secret" "setup" {
 
   for_each = toset([
     "slack-token",
-    "slack-channel",
     "slack-signing-secret",
-    "notification-key"
+    "notification-key",
+    "workflows-callback-url",
+    "workflows-callback-token"
   ])
 
   secret_id = each.value
@@ -114,7 +115,6 @@ resource "google_secret_manager_secret_iam_member" "approval_notification_secret
 
   for_each = toset([
     "slack-token",
-    "slack-channel",
     "notification-key"
   ])
 
@@ -215,7 +215,9 @@ resource "google_project_iam_binding" "cf_approval_response_sa" {
 resource "google_secret_manager_secret_iam_member" "approval_response_secrets_iam" {
 
   for_each = toset([
-    "slack-signing-secret"
+    "slack-signing-secret",
+    "workflows-callback-url",
+    "workflows-callback-token"
   ])
 
   project = var.project_id
