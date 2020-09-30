@@ -54,11 +54,11 @@ Add your secrets to Google Secret Manager (These will be pre created by Terrafor
 
 You can test the approval outside of Workflows using curl by calling the approval notification endpoint using the key set in secrets management.
 
-type - is a field that is passed through to the callback workflow to determine the action required (could be a child flow)
-title - the title to appear on the Slack message
-slack_channel - specifies the channel the approval will be posted too
-msg_fields - determines the fields that will be displayed in the message (values taken from data)
-data - the context required to execute the workflow / action
+* type - is a field that is passed through to the callback workflow to determine the action required (could be a child flow)
+* title - the title to appear on the Slack message
+* slack_channel - specifies the channel the approval will be posted too
+* msg_fields - determines the fields that will be displayed in the message (values taken from data)
+* data - the context required to execute the workflow / action
 
 ```
 curl -X POST \
@@ -105,11 +105,19 @@ This data can then be actioned by the workflow
 
 ## Okta Workflows
 
-Create both a requesting and callback workflow, two in total.
+Create:
+1. requesting workflow
+1. a callback workflow
+
+### Requesting workflow
 
 The first workflow needs to take the source data, construct it into a suitable format for the approval service and post it to the approval service. You can then take any other action required or just close the connection
 
 ![Slack Message](/doc/images/approval_request_workflow.png)
 
-The second workflow must be triggered by as an API Endpoint. 
+The requesting workflow could be triggered by any input. For example an API Endpoint if an external system is triggering the flow, a Google sheet etc..
+
+### Callback Workflow
+
+The second workflow must be triggered by as an API Endpoint. This takes the data submitted and performs any action required.
 
