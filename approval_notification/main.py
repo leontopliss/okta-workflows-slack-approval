@@ -23,10 +23,12 @@ def approval_notify(request):
     if not notification_key:
         notification_key = get_secret(gcp_project_id, 'notification-key')
 
-    if ('X-Api-Key' not in request.headers 
-            or request.headers['X-Api-Key'] != notification_key
-            or len(request.headers['X-Api-Key']) < 10):
+    if ('X-Api-Key' not in request.headers or not api_key_valid(request.headers['X-Api-Key'])):
+        log.fatal('API key is invalid')
         return 'unauthorized', 403
+
+    if not api_key_long_enough(request.headers['X-Api-Key']):
+        log.warning('API key is too short please make it at least 10 characters')
 
     try:
         request_json = request.get_json(silent=True)
@@ -35,7 +37,7 @@ def approval_notify(request):
         data = json.loads(request_json["data"])
         msg_fields = request_json["msg_fields"]
         slack_channel = request_json["slack_channel"]
-    except ValueError as err:
+    except KeyError as err:
         log.error('payload malformed or mandatory data missing: {}'.format(err))
         return 'payload malformed or mandatory data missing', 500
 
@@ -58,14 +60,29 @@ def approval_notify(request):
     write_to_datastore(request_id, approval_type, data)
 
     # Send message to Slack
-    client.chat_postMessage(
-        channel=slack_channel,
-        blocks=msg_blocks
-    )
+    try:
+        client.chat_postMessage(
+            channel=slack_channel,
+            blocks=msg_blocks
+        )
+    except slack.errors.SlackApiError as err:
+        log.error('could not post to slack: {}'.format(err))
+        return 'error posting to slack', 500
 
     return 'ok', 200
 
 
+def api_key_valid(key_provided):
+    if (key_provided == notification_key):
+        return True
+    else:
+        return False
+
+def api_key_long_enough(key_provided):
+    if len(key_provided) < 10:
+        return False
+    else:
+        return True
 
 def construct_title_msg_blocks(title):
     title_block = {
